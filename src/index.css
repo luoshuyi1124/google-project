@@ -19,7 +19,6 @@
   letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);
-  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -28,6 +27,25 @@
   @media (max-width: 1024px) {
     font-size: 16px;
   }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #f9f9f9;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100%;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -55,12 +73,10 @@ body {
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  text-align: left;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
