@@ -1,122 +1,74 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
-import { test } from './api'
+
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const videos = [
+    { id: 1, title: 'Sample Video 1', channel: 'Channel 1', views: '1M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
+    { id: 2, title: 'Sample Video 2', channel: 'Channel 2', views: '500K views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
+    { id: 3, title: 'Sample Video 3', channel: 'Channel 3', views: '2M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
+    { id: 4, title: 'Sample Video 4', channel: 'Channel 4', views: '800K views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
+    { id: 5, title: 'Sample Video 5', channel: 'Channel 5', views: '3M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
+    { id: 6, title: 'Sample Video 6', channel: 'Channel 6', views: '1.5M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
+  ]
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app">
+      <header className="header">
+        <div className="header-left">
+         {/* <button className="menu-btn">☰</button>*/}
+          <div className="logo">FocusTube</div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+        <div className="header-center">
+          <input
+            type="text"
+            placeholder="Search"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+          <button className="search-btn">
+            <img src="https://img.icons8.com/ios-filled/20/000000/search.png" alt="Search" />
+          </button>
         </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-        <button onClick={() => test()}>heh</button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+        <div className="header-right">
+          <button className="user-btn">👤</button>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      </header>
+      <div className="main">
+        <aside className="sidebar">
+          <nav>
+            <ul>
+              <li><a href="#App.jsx">🏠 Home</a></li>
+              <li><a href="#">🔥 focus-mode</a></li>
+              <li><a href="#">📺 Subscriptions</a></li>
+              <li><a href="#">📚 Library</a></li>
+              <li><a href="#">📜 History</a></li>
+              <li><a href="#">🎵 Music</a></li>
+              <li><a href="#">🎮 Gaming</a></li>
+              <li><a href="#">📰 News</a></li>
+              <li><a href="#">🏆 Sports</a></li>
+            </ul>
+          </nav>
+        </aside>
+        <main className="content">
+          <div className="video-grid">
+            {videos.map(video => (
+              <div key={video.id} className="video-card">
+                <img src={video.thumbnail} alt={video.title} className="thumbnail" />
+                <div className="video-info">
+                  <h3 className="video-title">{video.title}</h3>
+                  <p>{video.channel}</p>
+                  <p>{video.views}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    </div>
   )
 }
 
