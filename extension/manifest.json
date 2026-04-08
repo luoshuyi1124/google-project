@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Focus",
+  "version": "1.0",
+  "description": "Productivity tools for YouTube",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "YouTube Focus"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["images/cute_koala.png"],
+      "matches": ["*://*.youtube.com/*"]
+    }
+  ]
+}
