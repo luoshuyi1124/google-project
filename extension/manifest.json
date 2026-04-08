@@ -3,7 +3,10 @@
   "name": "YouTube Focus",
   "version": "1.0",
   "description": "Productivity tools for YouTube",
-  "permissions": ["storage"],
+  "permissions": ["storage", "declarativeNetRequest"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "YouTube Focus"

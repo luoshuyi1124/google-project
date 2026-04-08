@@ -90,23 +90,12 @@ function applyBlockShorts(enabled) {
   }
 }
 
-// ─── Shorts redirect ──────────────────────────────────────────────────────────
-// Goal #3: if Block Shorts is on and the user lands on a /shorts/* URL, send
-// them back to the YouTube homepage.
-
-function checkShortsRedirect(blockEnabled) {
-  if (blockEnabled && window.location.pathname.startsWith("/shorts/")) {
-    window.location.href = "https://www.youtube.com";
-  }
-}
-
 // ─── YouTube SPA navigation ───────────────────────────────────────────────────
 // YouTube uses history.pushState for internal navigation, so the content script
 // only runs once. Re-apply features whenever YouTube signals a navigation.
 
 window.addEventListener("yt-navigate-finish", () => {
   chrome.storage.sync.get(["productivityMode", "blockShorts"], (data) => {
-    checkShortsRedirect(!!data.blockShorts);
     if (data.blockShorts) hideShortsShelf();
   });
 });
@@ -116,15 +105,11 @@ window.addEventListener("yt-navigate-finish", () => {
 chrome.storage.sync.get(["productivityMode", "blockShorts"], (data) => {
   applyProductivityMode(!!data.productivityMode);
   applyBlockShorts(!!data.blockShorts);
-  checkShortsRedirect(!!data.blockShorts);
 });
 
 // ─── Message listener (from popup toggle changes) ─────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "productivityMode") applyProductivityMode(msg.value);
-  if (msg.type === "blockShorts") {
-    applyBlockShorts(msg.value);
-    checkShortsRedirect(msg.value);
-  }
+  if (msg.type === "blockShorts") applyBlockShorts(msg.value);
 });
