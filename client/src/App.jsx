@@ -7,6 +7,13 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('')
   const [videoData, setVideoData] = useState([])
 
+  const searchYouTube = async (e) => {
+    const data = await getSearchList(searchTerm)
+    const videoIds = data['items'].map((item) => item['id']['videoId']).join(',')
+    const videos = await getVideos(videoIds)
+    setVideoData(videos["items"])
+  }
+
   return (
     <div className="app">
       <header className="header">
@@ -14,7 +21,7 @@ function App() {
          {/* <button className="menu-btn">☰</button>*/}
           <div className="logo">FocusTube</div>
         </div>
-        <div className="header-center">
+        <form onSubmit={searchYouTube} className="header-center">
           <input
             type="text"
             placeholder="Search"
@@ -22,15 +29,10 @@ function App() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
-          <button className="search-btn" onClick={async (e) => {
-            const data = await getSearchList(searchTerm)
-            const videoIds = data['items'].map((item) => item['id']['videoId']).join(',')
-            const videos = await getVideos(videoIds)
-            setVideoData(videos["items"])
-          }}>
+          <button className="search-btn" onClick={searchYouTube}>
             <img src="https://img.icons8.com/ios-filled/20/000000/search.png" alt="Search" />
           </button>
-        </div>
+        </form>
       </header>
       <div className="main">
         <aside className="sidebar">
