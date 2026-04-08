@@ -1,14 +1,29 @@
 const SERVER = "http://localhost:3000"
 
-export async function test() {
+export async function getSearchList(searchTerm) {
     const response = await fetch(`${SERVER}/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            searchTerm: searchTerm
+        })
+    })
+
+    return await response.json()
+}
+
+export async function getVideos(videoIds) {
+    const response = await fetch(`${SERVER}/video`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({nani: "pinablle"})
+        body: JSON.stringify({
+            videoIds: videoIds
+        })
     })
 
-    const result = await response.text();
-    console.log(result)
+    return await response.json()
 }

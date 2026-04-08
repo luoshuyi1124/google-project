@@ -1,18 +1,11 @@
 import { useState } from 'react'
 import './App.css'
+import { getSearchList, getVideos} from './api'
 
 
 function App() {
   const [searchTerm, setSearchTerm] = useState('')
-
-  const videos = [
-    { id: 1, title: 'Sample Video 1', channel: 'Channel 1', views: '1M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
-    { id: 2, title: 'Sample Video 2', channel: 'Channel 2', views: '500K views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
-    { id: 3, title: 'Sample Video 3', channel: 'Channel 3', views: '2M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
-    { id: 4, title: 'Sample Video 4', channel: 'Channel 4', views: '800K views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
-    { id: 5, title: 'Sample Video 5', channel: 'Channel 5', views: '3M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
-    { id: 6, title: 'Sample Video 6', channel: 'Channel 6', views: '1.5M views', thumbnail: 'https://images.stockcake.com/public/f/c/5/fc5a10ee-206a-40fc-a18c-145a8dfd3cee_large/cozy-winter-reading-stockcake.jpg' },
-  ]
+  const [videoData, setVideoData] = useState([])
 
   return (
     <div className="app">
@@ -29,12 +22,14 @@ function App() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
-          <button className="search-btn">
+          <button className="search-btn" onClick={async (e) => {
+            const data = await getSearchList(searchTerm)
+            const videoIds = data['items'].map((item) => item['id']['videoId']).join(',')
+            const videos = await getVideos(videoIds)
+            setVideoData(videos["items"])
+          }}>
             <img src="https://img.icons8.com/ios-filled/20/000000/search.png" alt="Search" />
           </button>
-        </div>
-        <div className="header-right">
-          <button className="user-btn">👤</button>
         </div>
       </header>
       <div className="main">
@@ -55,16 +50,17 @@ function App() {
         </aside>
         <main className="content">
           <div className="video-grid">
-            {videos.map(video => (
-              <div key={video.id} className="video-card">
-                <img src={video.thumbnail} alt={video.title} className="thumbnail" />
-                <div className="video-info">
-                  <h3 className="video-title">{video.title}</h3>
-                  <p>{video.channel}</p>
-                  <p>{video.views}</p>
+            {videoData.map((video) => {
+              return (
+                <div key={video["id"]} className="video-card">
+                  <div className="video-info">
+                    <h3 className="video-title">{video["snippet"]["title"]}</h3>
+                    <p>Channel: {video["snippet"]["channelTitle"]}</p>
+                    <p>Views: {video["statistics"]["viewCount"]}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </main>
       </div>
