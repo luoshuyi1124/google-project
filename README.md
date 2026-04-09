@@ -1,3 +1,6 @@
+# Product Idea
+The team is building a website and extension that blocks youtube visuals such as thumbnails and youtube shorts to encourage users to focus on their work.
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
