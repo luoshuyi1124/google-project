@@ -1,23 +1,38 @@
 const KOALA_URL = chrome.runtime.getURL("images/cute_koala.png");
 
 // ─── Productivity Mode ────────────────────────────────────────────────────────
-// Replaces all video thumbnails with the koala image via CSS content injection.
+// Uses CSS `content: url()` on thumbnail <img> elements to replace what Chrome
+// paints, regardless of what YouTube sets on src/srcset. Also hides hover
+// video previews via CSS.
 
 function applyProductivityMode(enabled) {
-  const existing = document.getElementById("yt-focus-productivity-style");
+  const existingStyle = document.getElementById("yt-focus-productivity-style");
   if (enabled) {
-    if (existing) return;
+    if (existingStyle) return;
     const style = document.createElement("style");
     style.id = "yt-focus-productivity-style";
+    // content: url() on <img> replaces what Chrome paints entirely.
+    // YouTube's JS can change src/srcset all it wants — CSS content wins.
     style.textContent = `
-      ytd-thumbnail img {
+      ytd-thumbnail img,
+      ytd-playlist-thumbnail img,
+      .ytThumbnailViewModelImage img {
         content: url('${KOALA_URL}') !important;
         object-fit: cover !important;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      #inline-preview-player,
+      ytd-thumbnail video,
+      ytd-playlist-thumbnail video,
+      yt-thumbnail-view-model video {
+        display: none !important;
+        visibility: hidden !important;
       }
     `;
     document.head.appendChild(style);
   } else {
-    existing?.remove();
+    existingStyle?.remove();
   }
 }
 
