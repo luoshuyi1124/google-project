@@ -4,7 +4,7 @@ import { getSearchList, getVideos } from "./api";
 import LandingPage from "./LandingPage";
 
 function App() {
-  const [showLanding, setShowLanding] = useState(true);
+  const [showLanding, setShowLanding] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [videoData, setVideoData] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -84,6 +84,22 @@ function App() {
       <header className="header">
         <div className="header-left">
           <div className="logo">FocusTube</div>
+          <button
+            onClick={() => setShowLanding(true)}
+            style={{
+              marginLeft: "16px",
+              background: "transparent",
+              border: "1px solid #7c3aed",
+              color: "#a855f7",
+              padding: "6px 14px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontSize: "13px",
+              fontWeight: 600,
+            }}
+          >
+            Get the Extension
+          </button>
         </div>
 
         <form onSubmit={searchYouTube} className="header-center">
