@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { getSearchList, getVideos } from "./api";
+import LandingPage from "./LandingPage";
 
 function App() {
+  const [showLanding, setShowLanding] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [videoData, setVideoData] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -72,6 +74,10 @@ function App() {
       playerRef.current.playVideo();
     }
   };
+
+  if (showLanding) {
+    return <LandingPage onLaunchApp={() => setShowLanding(false)} />;
+  }
 
   return (
     <div className="app">
