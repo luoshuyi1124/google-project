@@ -85,18 +85,8 @@ function App() {
         <div className="header-left">
           <div className="logo">FocusTube</div>
           <button
+            className="header-ext-btn"
             onClick={() => setShowLanding(true)}
-            style={{
-              marginLeft: "16px",
-              background: "transparent",
-              border: "1px solid #7c3aed",
-              color: "#a855f7",
-              padding: "6px 14px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontWeight: 600,
-            }}
           >
             Get the Extension
           </button>
@@ -110,10 +100,9 @@ function App() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
-
           <button className="search-btn" onClick={searchYouTube}>
             <img
-              src="https://img.icons8.com/ios-filled/20/000000/search.png"
+              src="https://img.icons8.com/ios-filled/20/ffffff/search.png"
               alt="Search"
             />
           </button>
@@ -121,106 +110,71 @@ function App() {
       </header>
 
       <div className="main">
-        <div style={{ flexGrow: 1, position: "relative" }}>
-          <aside className="sidebar">
-            {/* Hidden YouTube player — required by YouTube API */}
-            <div
-              style={{
-                position: "absolute",
-                width: "1px",
-                height: "1px",
-                overflow: "hidden",
-              }}
-            >
-              <div id="yt-player"></div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "40vh",
-                backgroundColor: "blueviolet",
-                borderRadius: "50px",
-                padding: "20px",
-                textAlign: "center",
-              }}
-            >
-              {selectedVideo ? (
-                <>
-                  <h3 style={{ color: "white", margin: 0 }}>
-                    {selectedVideo["snippet"]["title"]}
-                  </h3>
-                  <p
-                    style={{ color: "rgba(255,255,255,0.7)", marginTop: "8px" }}
-                  >
-                    {selectedVideo["snippet"]["channelTitle"]}
-                  </p>
-                </>
-              ) : (
-                <p style={{ color: "white" }}>Select a video to play</p>
-              )}
-            </div>
-
-            <div style={{ display: "flex", height: "4vh" }}></div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "40vh",
-                backgroundColor: "gray",
-                gap: "16px",
-              }}
-            >
-              <button
-                onClick={togglePlay}
-                disabled={!selectedVideo}
-                style={{
-                  padding: "12px 32px",
-                  fontSize: "20px",
-                  cursor: selectedVideo ? "pointer" : "not-allowed",
-                  borderRadius: "8px",
-                  border: "none",
-                }}
-              >
-                {isPlaying ? "⏸" : "▶"}
-              </button>
-            </div>
-          </aside>
+        {/* Hidden YouTube player */}
+        <div
+          style={{
+            position: "absolute",
+            width: "1px",
+            height: "1px",
+            overflow: "hidden",
+          }}
+        >
+          <div id="yt-player"></div>
         </div>
 
+        {/* Left — player panel */}
+        <div className="sidebar-wrap">
+          <div className="now-playing-card">
+            <p className="now-playing-label">Now Playing</p>
+            {selectedVideo ? (
+              <>
+                <h3 className="now-playing-title">
+                  {selectedVideo["snippet"]["title"]}
+                </h3>
+                <p className="now-playing-channel">
+                  {selectedVideo["snippet"]["channelTitle"]}
+                </p>
+              </>
+            ) : (
+              <p className="now-playing-idle">Select a video to play</p>
+            )}
+          </div>
+
+          <div className="controls-card">
+            <span className="controls-label">Controls</span>
+            <button
+              className="play-btn"
+              onClick={togglePlay}
+              disabled={!selectedVideo}
+            >
+              {isPlaying ? "⏸" : "▶"}
+            </button>
+          </div>
+        </div>
+
+        {/* Right — search results */}
         <div className="content-wrap">
-          <main className="content">
-            <div className="video-grid">
-              {videoData.map((video) => {
-                const isSelected = selectedVideo?.["id"] === video["id"];
-                return (
-                  <div
-                    key={video["id"]}
-                    className="video-card"
-                    onClick={() => selectVideo(video)}
-                    style={{
-                      cursor: "pointer",
-                      outline: isSelected ? "2px solid blueviolet" : "none",
-                    }}
-                  >
-                    <div className="video-info">
-                      <h3 className="video-title">
-                        {video["snippet"]["title"]}
-                      </h3>
-                      <p>Channel: {video["snippet"]["channelTitle"]}</p>
-                      <p>Views: {video["statistics"]["viewCount"]}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </main>
+          <div className="video-grid">
+            {videoData.map((video) => {
+              const isSelected = selectedVideo?.["id"] === video["id"];
+              return (
+                <div
+                  key={video["id"]}
+                  className={`video-card${isSelected ? " video-card--selected" : ""}`}
+                  onClick={() => selectVideo(video)}
+                >
+                  <h3 className="video-title">{video["snippet"]["title"]}</h3>
+                  <p className="video-meta">
+                    <span>{video["snippet"]["channelTitle"]}</span>
+                  </p>
+                  <p className="video-meta">
+                    {Number(video["statistics"]["viewCount"]).toLocaleString()}{" "}
+                    views
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
