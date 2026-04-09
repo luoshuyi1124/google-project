@@ -1,0 +1,150 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Display:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=BBH+Bartle&family=Noto+Sans+Display:ital,wght@0,100..900;1,100..900&family=Noto+Sans+JP:wght@100..900&display=swap');
+
+.app {
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  height: 100vh;
+  width: 100%;
+  background: #000;
+  color-scheme: light dark;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 8vh;
+  padding: 16px;
+  background: #111;
+  color: #fff;
+}
+
+.logo{
+  font-size: 24px;
+  font-weight: bold;
+  color: blueviolet;
+}
+
+.header-center {
+  display: flex;
+  flex: 0;
+}
+
+.search-input {
+  flex: 1;
+  padding: 8px 16px;
+  border: 1px solid #333;
+  border-radius: 25px 0 0 25px;
+  background: #000;
+  color: #fff;
+  outline: none;
+  font-size: 16px;
+}
+
+.search-input:focus {
+  border-color: #065fd4;
+}
+
+.search-btn {
+  background: blueviolet;
+  border: 1px solid #333;
+  border-radius: 0 25px 25px 0;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s;
+  display: flex;
+}
+
+.search-btn:hover {
+  background: #e8e8e8;
+}
+
+.main {
+  display: flex;
+  flex-grow: 1;
+}
+
+.sidebar {
+  flex-grow: 1;
+  background: #111;
+  color: #fff;
+  padding: 24px;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.video-image {
+  border-radius: 25px 25px 25px 25px;
+}
+
+.content-wrap {
+  flex-grow: 2.25;
+  position: relative;
+}
+
+.content {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  overflow-y: scroll;
+}
+
+.video-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.video-card {
+  background: #111;
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 12px;
+  color: #fff;
+}
+.video-card:hover {
+  background: #111;
+  border-radius: 10px;
+  overflow: hidden;
+  padding: 12px;
+  color: #fff;
+  box-shadow: 4px 4px 14px 10px #8080803a;
+  transition: all 0.1s ease-in-out;
+}
+.video-title {
+  font-weight: 800;
+  color: blueviolet;
+}
+
+
+
+/* 
+.search-btn img {
+  width: 20px;
+  height: 20px;
+}
+
+.search-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar a {
+  display: block;
+  padding: 10px 20px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.thumbnail {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+ */
