@@ -2,21 +2,60 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+Display:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       body {
-        font-family: sans-serif;
-        width: 220px;
-        padding: 16px;
-        background: #1a1a1a;
+        font-family: "Noto Sans Display", sans-serif;
+        width: 280px;
+        padding: 0;
+        background: #0a0a0a;
         color: #fff;
         margin: 0;
       }
+
+      /* ── Header / branding ── */
+      .popup-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid #1e1e1e;
+      }
+      .popup-header img {
+        width: 32px;
+        height: 32px;
+        object-fit: contain;
+        border-radius: 50%;
+      }
+      .popup-brand {
+        font-size: 15px;
+        font-weight: 700;
+        color: #a855f7;
+        line-height: 1.2;
+      }
+      .popup-tagline {
+        font-size: 10px;
+        color: #555;
+        font-weight: 400;
+      }
+
+      /* ── Body padding ── */
+      .popup-body {
+        padding: 14px 16px 16px;
+      }
+
       h2 {
-        margin: 0 0 16px;
-        font-size: 12px;
-        color: #aaa;
+        margin: 0 0 12px;
+        font-size: 10px;
+        color: #555;
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 1.2px;
+        font-weight: 600;
       }
       .row {
         display: flex;
@@ -26,6 +65,8 @@
       }
       .label {
         font-size: 13px;
+        font-weight: 600;
+        color: #e2e2e2;
       }
       .switch {
         position: relative;
@@ -39,59 +80,196 @@
       .slider {
         position: absolute;
         inset: 0;
-        background: #555;
+        background: #1e1e1e;
+        border: 1px solid #2a2a2a;
         border-radius: 22px;
         cursor: pointer;
-        transition: background 0.2s;
+        transition:
+          background 0.2s,
+          border-color 0.2s;
       }
       .slider::before {
         content: "";
         position: absolute;
         width: 16px;
         height: 16px;
-        left: 3px;
-        top: 3px;
-        background: #fff;
+        left: 2px;
+        top: 2px;
+        background: #444;
         border-radius: 50%;
-        transition: transform 0.2s;
+        transition:
+          transform 0.2s,
+          background 0.2s;
       }
       input:checked + .slider {
-        background: #4caf50;
+        background: rgba(124, 58, 237, 0.25);
+        border-color: #7c3aed;
       }
       input:checked + .slider::before {
         transform: translateX(18px);
+        background: #a855f7;
+      }
+
+      /* ── AI Filter section ── */
+      .divider {
+        border: none;
+        border-top: 1px solid #1e1e1e;
+        margin: 14px 0;
+      }
+      .section-desc {
+        font-size: 11px;
+        color: #555;
+        margin: -8px 0 12px;
+      }
+      .theme-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .theme-chip {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid #1e1e1e;
+        background: #111;
+        color: #666;
+        cursor: pointer;
+        user-select: none;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          color 0.15s;
+        white-space: nowrap;
+        font-family: "Noto Sans Display", sans-serif;
+      }
+      .theme-chip:hover {
+        border-color: #7c3aed;
+        color: #c084fc;
+      }
+      .theme-chip.selected {
+        background: rgba(124, 58, 237, 0.2);
+        border-color: #7c3aed;
+        color: #a855f7;
+      }
+      .theme-chip.custom.selected {
+        background: rgba(168, 85, 247, 0.15);
+        border-color: #a855f7;
+        color: #c084fc;
+      }
+      .theme-chip .remove-btn {
+        margin-left: 5px;
+        font-size: 11px;
+        opacity: 0.7;
+        line-height: 1;
+      }
+      .theme-chip .remove-btn:hover {
+        opacity: 1;
+      }
+      .custom-theme-row {
+        display: flex;
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .custom-theme-row input {
+        flex: 1;
+        background: #111;
+        border: 1px solid #1e1e1e;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 12px;
+        font-family: "Noto Sans Display", sans-serif;
+        padding: 5px 8px;
+        outline: none;
+        min-width: 0;
+        transition: border-color 0.15s;
+      }
+      .custom-theme-row input:focus {
+        border-color: #7c3aed;
+      }
+      .custom-theme-row input::placeholder {
+        color: #333;
+      }
+      .custom-theme-row button {
+        background: #7c3aed;
+        border: none;
+        border-radius: 6px;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        font-family: "Noto Sans Display", sans-serif;
+        padding: 5px 12px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s;
+      }
+      .custom-theme-row button:hover {
+        background: #6d28d9;
+      }
+      .filter-status {
+        font-size: 11px;
+        color: #555;
+        margin-top: 8px;
+        min-height: 14px;
+      }
+      .filter-status.active {
+        color: #a855f7;
       }
     </style>
   </head>
   <body>
-    <h2>YouTube Focus</h2>
-    <div class="row">
-      <span class="label">Productivity Mode</span>
-      <label class="switch">
-        <input type="checkbox" id="productivityMode" />
-        <span class="slider"></span>
-      </label>
+    <div class="popup-header">
+      <img src="images/cute_koala.png" alt="FocusedKoala" />
+      <div>
+        <div class="popup-brand">FocusedKoala</div>
+        <div class="popup-tagline">Stay focused on YouTube</div>
+      </div>
     </div>
-    <div class="row">
-      <span class="label">Block Shorts</span>
-      <label class="switch">
-        <input type="checkbox" id="blockShorts" />
-        <span class="slider"></span>
-      </label>
-    </div>
-<!---UPDATED STARTS--->
-<!---UPDATED ENDS--->
-<!---UPDATED STARTS--->
-<div class="row">
-  <label class="label" for="focusKeywords">Focus Keywords (comma-separated, e.g., "education,tech"):</label>
-  <input type="text" id="focusKeywords" placeholder="e.g., education,tech" />
-</div>
-<div class="row">
-  <label class="label" for="blockKeywords">Block Keywords (comma-separated, e.g., "gaming,news"):</label>
-  <input type="text" id="blockKeywords" placeholder="e.g., gaming,news" />
-</div>
 
-<!---UPDATED ENDS--->
+    <div class="popup-body">
+      <h2>Focus Controls</h2>
+      <div class="row">
+        <span class="label">Productivity Mode</span>
+        <label class="switch">
+          <input type="checkbox" id="productivityMode" />
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div class="row">
+        <span class="label">Block Shorts</span>
+        <label class="switch">
+          <input type="checkbox" id="blockShorts" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <hr class="divider" />
+
+      <!-- AI Video Filter -->
+      <h2>AI Video Filter</h2>
+      <p class="section-desc">Show only videos matching selected themes</p>
+
+      <div class="theme-grid" id="presetGrid">
+        <!-- Preset chips rendered by popup.js -->
+      </div>
+
+      <div class="theme-grid" id="customGrid">
+        <!-- Custom theme chips rendered by popup.js -->
+      </div>
+
+      <div class="custom-theme-row">
+        <input
+          type="text"
+          id="customThemeInput"
+          placeholder="Type a theme…"
+          maxlength="40"
+        />
+        <button id="addThemeBtn">Add</button>
+      </div>
+
+      <div class="filter-status" id="filterStatus"></div>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>
