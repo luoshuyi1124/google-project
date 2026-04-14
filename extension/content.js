@@ -217,6 +217,7 @@ let aiFilterObserver = null;
 let aiDebounceTimer = null;
 let swKeepalivePort = null;
 let aiFilterRunId = 0; // incremented on each run; stale completions are discarded
+let aiFilterRunning = false; // prevents concurrent Ollama requests
 
 function openSwKeepalive() {
   if (swKeepalivePort) return;
@@ -315,7 +316,7 @@ async function detectAiModel() {
     console.warn("[AI Filter] No models installed in Ollama");
     return null;
   }
-  const preferred = ["llama3", "mistral", "phi", "gemma", "qwen", "deepseek"];
+  const preferred = ["deepseek", "mistral", "qwen", "gemma", "phi", "llama3"];
   const match = preferred.flatMap((p) => models.filter((m) => m.includes(p)));
   aiModel = match[0] || models[0];
   console.log("[AI Filter] Selected model:", aiModel);
@@ -335,12 +336,12 @@ async function classifyTitles(titles, themes) {
   const numbered = titles.map((t, i) => `${i}: "${t}"`).join("\n");
 
   const prompt =
-    `You are a video content filter. The user wants to watch videos about: ${themeList}.\n` +
+    `You are a strict video content filter. The user ONLY wants to watch videos about: ${themeList}.\n` +
     `Below are YouTube video titles numbered from 0. ` +
-    `Reply with ONLY a JSON array of the 0-based indices of titles that do NOT match ` +
-    `any of those themes (titles to hide). If all match, reply with []. ` +
-    `Be generous — if a title is loosely related to any of the themes, do NOT hide it. ` +
-    `Only hide titles that are clearly unrelated to ALL of the themes. ` +
+    `Reply with ONLY a JSON array of the 0-based indices of titles that do NOT belong to any of those themes (titles to hide). ` +
+    `Be strict and aggressive — if a title is not clearly and directly about one of the themes, include it in the hide list. ` +
+    `Only show titles that are unmistakably about the requested themes. ` +
+    `If all titles should be hidden, reply with an array of all indices. If all match, reply with []. ` +
     `No explanation, no markdown — only the raw JSON array.\n\n` +
     `Titles:\n${numbered}\n\nJSON array of indices to hide:`;
 
@@ -390,6 +391,32 @@ async function classifyTitles(titles, themes) {
 
 async function runAiFilter() {
   const runId = ++aiFilterRunId;
+  if (aiFilterRunning) {
+    console.log(
+      "[AI Filter] Already running — will re-check after current run",
+    );
+    return;
+  }
+  aiFilterRunning = true;
+  try {
+    await _runAiFilterInner(runId);
+  } finally {
+    aiFilterRunning = false;
+    // If new cards appeared while we were running, process them now
+    const uncachedExist = [
+      ...document.querySelectorAll(VIDEO_CARD_SELECTOR),
+    ].some((card) => {
+      const el = card.querySelector(TITLE_SELECTOR);
+      const title = (el?.getAttribute("title") || el?.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return title && !aiDecisionCache.has(title);
+    });
+    if (uncachedExist) scheduleAiFilter();
+  }
+}
+
+async function _runAiFilterInner(runId) {
   if (!aiState.enabled || aiState.themes.length === 0) {
     console.log(
       "[AI Filter] runAiFilter: disabled or no themes — restoring all cards",
@@ -478,10 +505,6 @@ async function runAiFilter() {
     console.log(
       `[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked`,
     );
-    console.groupCollapsed(
-      `%c[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked (expand for details)`,
-      "font-weight: bold;",
-    );
     if (shownTitles.length > 0) {
       console.groupCollapsed(
         `%c✅ Shown (${shownTitles.length})`,
@@ -502,7 +525,6 @@ async function runAiFilter() {
       );
       console.groupEnd();
     }
-    console.groupEnd();
   }
 }
 
