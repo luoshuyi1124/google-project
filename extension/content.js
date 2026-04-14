@@ -206,7 +206,8 @@ const VIDEO_CARD_SELECTOR = [
   "ytd-grid-video-renderer",
 ].join(", ");
 
-const TITLE_SELECTOR = "#video-title, #video-title-link";
+const TITLE_SELECTOR =
+  "#video-title, #video-title-link, h3.ytLockupMetadataViewModelHeadingReset";
 
 let aiState = { enabled: false, themes: [] };
 let aiModel = null;
@@ -381,7 +382,10 @@ async function runAiFilter() {
 
   // Apply cached decisions instantly, queue the rest
   cards.forEach((card) => {
-    const title = card.querySelector(TITLE_SELECTOR)?.textContent?.trim();
+    const el = card.querySelector(TITLE_SELECTOR);
+    const title = (el?.getAttribute("title") || el?.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (!title) return;
     if (aiDecisionCache.has(title)) {
       const show = aiDecisionCache.get(title);
