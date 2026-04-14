@@ -304,6 +304,17 @@ async function detectAiModel() {
     console.log("[AI Filter] Using cached model:", aiModel);
     return aiModel;
   }
+  // Check if the user has manually chosen a model in the popup
+  const stored = await new Promise((resolve) =>
+    chrome.storage.sync.get("ollamaModel", (d) =>
+      resolve(d.ollamaModel || null),
+    ),
+  );
+  if (stored) {
+    aiModel = stored;
+    console.log("[AI Filter] Using user-selected model:", aiModel);
+    return aiModel;
+  }
   console.log("[AI Filter] Querying Ollama for available models…");
   const data = await ollamaProxy({ type: "ollamaTags" });
   if (!data) {
@@ -319,7 +330,7 @@ async function detectAiModel() {
   const preferred = ["deepseek", "mistral", "qwen", "gemma", "phi", "llama3"];
   const match = preferred.flatMap((p) => models.filter((m) => m.includes(p)));
   aiModel = match[0] || models[0];
-  console.log("[AI Filter] Selected model:", aiModel);
+  console.log("[AI Filter] Auto-selected model:", aiModel);
   return aiModel;
 }
 
@@ -678,6 +689,11 @@ chrome.runtime.onMessage.addListener((msg) => {
         applyAiFilter(enabled, themes);
       },
     );
+  }
+
+  if (msg.type === "ollamaModel") {
+    aiModel = msg.value || null; // clear cache so next run uses new model
+    console.log("[AI Filter] Model changed to:", aiModel);
   }
 });
 

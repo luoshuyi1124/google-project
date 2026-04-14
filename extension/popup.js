@@ -5,7 +5,13 @@ const TOGGLE_KEYS = [
   "aiFilterEnabled",
 ];
 const TEXT_KEYS = ["focusKeywords", "blockKeywords"];
-const ALL_KEYS = [...TOGGLE_KEYS, ...TEXT_KEYS, "aiThemes", "aiCustomThemes"];
+const ALL_KEYS = [
+  ...TOGGLE_KEYS,
+  ...TEXT_KEYS,
+  "aiThemes",
+  "aiCustomThemes",
+  "ollamaModel",
+];
 
 // Restore saved states on open
 chrome.storage.sync.get(ALL_KEYS, (data) => {
@@ -171,26 +177,51 @@ document.getElementById("customThemeInput").addEventListener("keydown", (e) => {
   }
 });
 
-// ── Ollama status check ──────────────────────────────────────────────────────
-// Routed through background.js (CORS-exempt service worker proxy).
+// ── Ollama status + model selector ──────────────────────────────────────────
 function checkOllamaStatus() {
   const dot = document.getElementById("ollamaDot");
   const text = document.getElementById("ollamaStatusText");
+  const select = document.getElementById("ollamaModel");
   text.textContent = "Checking Ollama\u2026";
   dot.classList.remove("online", "offline");
 
   chrome.runtime.sendMessage({ type: "ollamaTags" }, (res) => {
-    void chrome.runtime.lastError; // suppress unhandled error if SW was asleep
+    void chrome.runtime.lastError;
     if (!res?.ok || !res.data?.models?.length) {
       dot.classList.add("offline");
       text.textContent = "Ollama offline \u2014 run: ollama serve";
+      select.innerHTML = '<option value="">— offline —</option>';
       return;
     }
     dot.classList.add("online");
-    const modelName = res.data.models[0].name.split(":")[0];
-    text.textContent = `Ollama ready \u00b7 ${modelName}`;
+    text.textContent = "Ollama ready";
+
+    const models = res.data.models.map((m) => m.name);
+    chrome.storage.sync.get("ollamaModel", ({ ollamaModel }) => {
+      select.innerHTML = "";
+      for (const name of models) {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        if (name === ollamaModel) opt.selected = true;
+        select.appendChild(opt);
+      }
+      // If nothing was saved yet, persist + notify with the first model
+      if (!ollamaModel) {
+        const first = models[0];
+        chrome.storage.sync.set({ ollamaModel: first });
+        sendToTab({ type: "ollamaModel", value: first });
+      }
+    });
   });
 }
+
+document.getElementById("ollamaModel").addEventListener("change", (e) => {
+  const value = e.target.value;
+  chrome.storage.sync.set({ ollamaModel: value });
+  sendToTab({ type: "ollamaModel", value });
+});
+
 checkOllamaStatus();
 
 // Also re-check when Apply Filter is toggled on
