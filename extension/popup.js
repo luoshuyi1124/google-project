@@ -2,6 +2,7 @@ const TOGGLE_KEYS = [
   "productivityMode",
   "blockShorts",
   "blockShortsEverywhere",
+  "aiFilterEnabled",
 ];
 const TEXT_KEYS = ["focusKeywords", "blockKeywords"];
 const ALL_KEYS = [...TOGGLE_KEYS, ...TEXT_KEYS, "aiThemes", "aiCustomThemes"];
@@ -168,6 +169,33 @@ document.getElementById("customThemeInput").addEventListener("keydown", (e) => {
     addCustomTheme(e.target.value);
     e.target.value = "";
   }
+});
+
+// ── Ollama status check ──────────────────────────────────────────────────────
+// Routed through background.js (CORS-exempt service worker proxy).
+function checkOllamaStatus() {
+  const dot = document.getElementById("ollamaDot");
+  const text = document.getElementById("ollamaStatusText");
+  text.textContent = "Checking Ollama\u2026";
+  dot.classList.remove("online", "offline");
+
+  chrome.runtime.sendMessage({ type: "ollamaTags" }, (res) => {
+    void chrome.runtime.lastError; // suppress unhandled error if SW was asleep
+    if (!res?.ok || !res.data?.models?.length) {
+      dot.classList.add("offline");
+      text.textContent = "Ollama offline \u2014 run: ollama serve";
+      return;
+    }
+    dot.classList.add("online");
+    const modelName = res.data.models[0].name.split(":")[0];
+    text.textContent = `Ollama ready \u00b7 ${modelName}`;
+  });
+}
+checkOllamaStatus();
+
+// Also re-check when Apply Filter is toggled on
+document.getElementById("aiFilterEnabled")?.addEventListener("change", (e) => {
+  if (e.target.checked) checkOllamaStatus();
 });
 
 // Restore AI filter state on open (merged into the existing storage.get restore)

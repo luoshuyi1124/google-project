@@ -215,6 +215,28 @@
       .filter-status.active {
         color: #a855f7;
       }
+      .ollama-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: #555;
+        margin-bottom: 12px;
+      }
+      .ollama-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #333;
+        flex-shrink: 0;
+        transition: background 0.3s;
+      }
+      .ollama-dot.online {
+        background: #a855f7;
+      }
+      .ollama-dot.offline {
+        background: #ef4444;
+      }
     </style>
   </head>
   <body>
@@ -247,6 +269,20 @@
 
       <!-- AI Video Filter -->
       <h2>AI Video Filter</h2>
+
+      <div class="ollama-status">
+        <span class="ollama-dot" id="ollamaDot"></span>
+        <span id="ollamaStatusText">Checking Ollama…</span>
+      </div>
+
+      <div class="row">
+        <span class="label">Apply Filter</span>
+        <label class="switch">
+          <input type="checkbox" id="aiFilterEnabled" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
       <p class="section-desc">Show only videos matching selected themes</p>
 
       <div class="theme-grid" id="presetGrid">

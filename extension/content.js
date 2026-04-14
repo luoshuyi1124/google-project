@@ -44,7 +44,9 @@ let shortsObserver = null;
 
 function hideShortsShelf() {
   document
-    .querySelectorAll("ytd-rich-shelf-renderer[is-shorts], ytd-reel-shelf-renderer")
+    .querySelectorAll(
+      "ytd-rich-shelf-renderer[is-shorts], ytd-reel-shelf-renderer",
+    )
     .forEach((el) => {
       el.style.display = "none";
       el.dataset.ytFocusHidden = "1";
@@ -82,7 +84,7 @@ function applyBlockShorts(enabled, everywhere = false) {
     if (everywhere) {
       document
         .querySelectorAll(
-          'ytd-video-renderer[is-shorts], ytd-compact-video-renderer[is-shorts], a[href*="/shorts/"], [data-shorts-video]'
+          'ytd-video-renderer[is-shorts], ytd-compact-video-renderer[is-shorts], a[href*="/shorts/"], [data-shorts-video]',
         )
         .forEach((el) => {
           el.style.display = "none";
@@ -101,7 +103,7 @@ function applyBlockShorts(enabled, everywhere = false) {
       if (everywhere) {
         document
           .querySelectorAll(
-            'ytd-video-renderer[is-shorts], ytd-compact-video-renderer[is-shorts], a[href*="/shorts/"], [data-shorts-video]'
+            'ytd-video-renderer[is-shorts], ytd-compact-video-renderer[is-shorts], a[href*="/shorts/"], [data-shorts-video]',
           )
           .forEach((el) => {
             el.style.display = "none";
@@ -110,7 +112,6 @@ function applyBlockShorts(enabled, everywhere = false) {
       }
     });
     shortsObserver.observe(document.body, { childList: true, subtree: true });
-
   } else {
     existingStyle?.remove();
 
@@ -156,10 +157,16 @@ function applyVideoFilter(focusKeywords, blockKeywords) {
   }
 
   const focusList = focusKeywords
-    ? focusKeywords.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean)
+    ? focusKeywords
+        .split(",")
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean)
     : [];
   const blockList = blockKeywords
-    ? blockKeywords.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean)
+    ? blockKeywords
+        .split(",")
+        .map((k) => k.trim().toLowerCase())
+        .filter(Boolean)
     : [];
 
   // If no keywords at all, do nothing — don't attach an observer
@@ -189,44 +196,381 @@ function applyVideoFilter(focusKeywords, blockKeywords) {
   filterObserver.observe(document.body, { childList: true, subtree: true });
 }
 
+// ─── AI Video Filter ─────────────────────────────────────────────────────────
+// All Ollama HTTP calls are routed through background.js (CORS-exempt proxy).
+
+const VIDEO_CARD_SELECTOR = [
+  "ytd-rich-item-renderer",
+  "ytd-video-renderer",
+  "ytd-compact-video-renderer",
+  "ytd-grid-video-renderer",
+].join(", ");
+
+const TITLE_SELECTOR = "#video-title, #video-title-link";
+
+let aiState = { enabled: false, themes: [] };
+let aiModel = null;
+let aiDecisionCache = new Map(); // title -> true (show) | false (hide)
+let aiFilterObserver = null;
+let aiDebounceTimer = null;
+let swKeepalivePort = null;
+
+function openSwKeepalive() {
+  if (swKeepalivePort) return;
+  swKeepalivePort = chrome.runtime.connect({ name: "keepalive" });
+  swKeepalivePort.onDisconnect.addListener(() => {
+    swKeepalivePort = null;
+  });
+  console.log("[AI Filter] Service worker keepalive port opened");
+}
+
+function closeSwKeepalive() {
+  if (!swKeepalivePort) return;
+  swKeepalivePort.disconnect();
+  swKeepalivePort = null;
+  console.log("[AI Filter] Service worker keepalive port closed");
+}
+
+function portCall(portName, payload) {
+  return new Promise((resolve) => {
+    let resolved = false;
+    const done = (value) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(value);
+      }
+    };
+    const port = chrome.runtime.connect({ name: portName });
+    if (payload !== undefined) port.postMessage(payload);
+    port.onMessage.addListener((res) => {
+      port.disconnect();
+      if (!res?.ok) {
+        console.warn(
+          `[AI Filter] ${portName} returned not-ok:`,
+          res?.error ?? "(unknown)",
+        );
+        done(null);
+      } else {
+        done(res.data);
+      }
+    });
+    port.onDisconnect.addListener(() => {
+      const err = chrome.runtime.lastError?.message;
+      if (err) console.warn(`[AI Filter] ${portName} port disconnected:`, err);
+      done(null);
+    });
+  });
+}
+
+function ollamaProxy(msg) {
+  if (msg.type === "ollamaTags") return portCall("ollamaTags");
+  if (msg.type === "ollamaGenerate")
+    return portCall("ollamaGenerate", msg.payload);
+  // fallback for any other messages
+  return Promise.resolve(null);
+}
+
+async function detectAiModel() {
+  if (aiModel) {
+    console.log("[AI Filter] Using cached model:", aiModel);
+    return aiModel;
+  }
+  console.log("[AI Filter] Querying Ollama for available models…");
+  const data = await ollamaProxy({ type: "ollamaTags" });
+  if (!data) {
+    console.warn("[AI Filter] detectAiModel: no response from Ollama proxy");
+    return null;
+  }
+  const models = (data.models || []).map((m) => m.name);
+  console.log("[AI Filter] Available models:", models);
+  if (models.length === 0) {
+    console.warn("[AI Filter] No models installed in Ollama");
+    return null;
+  }
+  const preferred = ["llama3", "mistral", "phi", "gemma", "qwen", "deepseek"];
+  const match = preferred.flatMap((p) => models.filter((m) => m.includes(p)));
+  aiModel = match[0] || models[0];
+  console.log("[AI Filter] Selected model:", aiModel);
+  return aiModel;
+}
+
+async function classifyTitles(titles, themes) {
+  const model = await detectAiModel();
+  if (!model) {
+    console.warn(
+      "[AI Filter] classifyTitles: no model available, skipping batch",
+    );
+    return null;
+  }
+
+  const themeList = themes.join(", ");
+  const numbered = titles.map((t, i) => `${i}: "${t}"`).join("\n");
+
+  const prompt =
+    `You are a video content filter. The user wants to watch videos about: ${themeList}.\n` +
+    `Below are YouTube video titles numbered from 0. ` +
+    `Reply with ONLY a JSON array of the 0-based indices of titles that do NOT match ` +
+    `any of those themes (titles to hide). If all match, reply with []. ` +
+    `Be generous — if a title is loosely related to any of the themes, do NOT hide it. ` +
+    `Only hide titles that are clearly unrelated to ALL of the themes. ` +
+    `No explanation, no markdown — only the raw JSON array.\n\n` +
+    `Titles:\n${numbered}\n\nJSON array of indices to hide:`;
+
+  console.log(
+    `[AI Filter] Sending ${titles.length} titles to Ollama (model: ${model})`,
+  );
+  console.log("[AI Filter] Prompt:\n", prompt);
+
+  const data = await ollamaProxy({
+    type: "ollamaGenerate",
+    payload: { model, prompt, stream: false },
+  });
+  if (!data) {
+    console.warn(
+      "[AI Filter] classifyTitles: no response from Ollama generate",
+    );
+    aiModel = null; // force re-detection next run
+    return null;
+  }
+
+  let raw = (data.response || "").trim();
+  console.log("[AI Filter] Raw Ollama response:\n", raw);
+
+  // Strip <think>...</think> blocks produced by reasoning models (e.g. deepseek-r1)
+  const stripped = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  if (stripped !== raw) {
+    console.log("[AI Filter] Stripped <think> block. Remaining:\n", stripped);
+    raw = stripped;
+  }
+
+  // Take the LAST JSON array in the response — the final answer, not mid-reasoning mentions
+  const matches = [...raw.matchAll(/\[[\d,\s]*\]/g)];
+  console.log(
+    "[AI Filter] JSON array matches found:",
+    matches.map((m) => m[0]),
+  );
+  if (matches.length === 0) {
+    console.warn(
+      "[AI Filter] No JSON array found in response, treating as 'hide none'",
+    );
+    return [];
+  }
+  const result = JSON.parse(matches[matches.length - 1][0]);
+  console.log("[AI Filter] Indices to hide:", result);
+  return result;
+}
+
+async function runAiFilter() {
+  if (!aiState.enabled || aiState.themes.length === 0) {
+    console.log(
+      "[AI Filter] runAiFilter: disabled or no themes — restoring all cards",
+    );
+    document.querySelectorAll("[data-ai-hidden]").forEach((el) => {
+      el.style.display = "";
+      delete el.dataset.aiHidden;
+    });
+    return;
+  }
+
+  const cards = [...document.querySelectorAll(VIDEO_CARD_SELECTOR)];
+  console.log(
+    `[AI Filter] runAiFilter: found ${cards.length} video cards on page`,
+  );
+
+  const uncached = [];
+
+  // Apply cached decisions instantly, queue the rest
+  cards.forEach((card) => {
+    const title = card.querySelector(TITLE_SELECTOR)?.textContent?.trim();
+    if (!title) return;
+    if (aiDecisionCache.has(title)) {
+      const show = aiDecisionCache.get(title);
+      card.style.display = show ? "" : "none";
+      if (!show) card.dataset.aiHidden = "1";
+      else delete card.dataset.aiHidden;
+    } else {
+      uncached.push({ card, title });
+    }
+  });
+
+  console.log(
+    `[AI Filter] ${cards.length - uncached.length} from cache, ${uncached.length} need classification`,
+  );
+  if (uncached.length === 0) return;
+
+  // Send uncached titles to Ollama in batches of 30
+  const BATCH_SIZE = 30;
+  for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
+    const batch = uncached.slice(i, i + BATCH_SIZE);
+    console.log(
+      `[AI Filter] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}: titles`,
+      batch.map((b) => b.title),
+    );
+
+    const hideIndices = await classifyTitles(
+      batch.map((b) => b.title),
+      aiState.themes,
+    );
+
+    if (hideIndices === null) {
+      console.warn("[AI Filter] Ollama unavailable — stopping filter run");
+      break;
+    }
+
+    const hideSet = new Set(hideIndices);
+    const hiddenTitles = [];
+    const shownTitles = [];
+    batch.forEach(({ card, title }, idx) => {
+      const show = !hideSet.has(idx);
+      aiDecisionCache.set(title, show);
+      card.style.display = show ? "" : "none";
+      if (!show) {
+        card.dataset.aiHidden = "1";
+        hiddenTitles.push(title);
+      } else {
+        delete card.dataset.aiHidden;
+        shownTitles.push(title);
+      }
+    });
+    console.groupCollapsed(
+      `%c[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked`,
+      "font-weight: bold;",
+    );
+    if (shownTitles.length > 0) {
+      console.groupCollapsed(
+        `%c✅ Shown (${shownTitles.length})`,
+        "color: #52b052; font-weight: bold;",
+      );
+      shownTitles.forEach((t, i) =>
+        console.log(`%c  ${i + 1}. ${t}`, "color: #52b052;"),
+      );
+      console.groupEnd();
+    }
+    if (hiddenTitles.length > 0) {
+      console.groupCollapsed(
+        `%c🚫 Blocked (${hiddenTitles.length})`,
+        "color: #e05252; font-weight: bold;",
+      );
+      hiddenTitles.forEach((t, i) =>
+        console.log(`%c  ${i + 1}. ${t}`, "color: #e05252;"),
+      );
+      console.groupEnd();
+    }
+    console.groupEnd();
+  }
+}
+
+function scheduleAiFilter() {
+  clearTimeout(aiDebounceTimer);
+  aiDebounceTimer = setTimeout(runAiFilter, 900);
+}
+
+function startAiObserver() {
+  if (aiFilterObserver) return;
+  console.log("[AI Filter] Starting MutationObserver");
+  aiFilterObserver = new MutationObserver(scheduleAiFilter);
+  aiFilterObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function stopAiObserver() {
+  aiFilterObserver?.disconnect();
+  aiFilterObserver = null;
+  clearTimeout(aiDebounceTimer);
+  console.log("[AI Filter] Observer stopped");
+}
+
+async function applyAiFilter(enabled, themes) {
+  console.log(
+    "[AI Filter] applyAiFilter called — enabled:",
+    enabled,
+    "themes:",
+    themes,
+  );
+  aiState = { enabled, themes };
+  aiDecisionCache.clear();
+
+  if (!enabled || themes.length === 0) {
+    console.log(
+      "[AI Filter] Filter off or no themes — clearing all hidden cards",
+    );
+    stopAiObserver();
+    closeSwKeepalive();
+    document.querySelectorAll("[data-ai-hidden]").forEach((el) => {
+      el.style.display = "";
+      delete el.dataset.aiHidden;
+    });
+    return;
+  }
+
+  openSwKeepalive();
+
+  await runAiFilter();
+  startAiObserver();
+}
+
 // ─── YouTube SPA navigation ───────────────────────────────────────────────────
 
 window.addEventListener("yt-navigate-finish", () => {
   chrome.storage.sync.get(
-    ["productivityMode", "blockShorts", "blockShortsEverywhere", "focusKeywords", "blockKeywords"],
+    [
+      "productivityMode",
+      "blockShorts",
+      "blockShortsEverywhere",
+      "focusKeywords",
+      "blockKeywords",
+      "aiFilterEnabled",
+      "aiThemes",
+      "aiCustomThemes",
+    ],
     (data) => {
       applyProductivityMode(!!data.productivityMode);
-
       if (data.blockShorts) {
         applyBlockShorts(true, !!data.blockShortsEverywhere);
         blockShortsPlayback();
       }
-
-      // Only run filter if there are actual keywords
       if (data.focusKeywords || data.blockKeywords) {
         applyVideoFilter(data.focusKeywords, data.blockKeywords);
       }
-    }
+      // New page — clear cache so fresh videos are classified
+      aiDecisionCache.clear();
+      if (data.aiFilterEnabled) {
+        const themes = [
+          ...(data.aiThemes || []),
+          ...(data.aiCustomThemes || []),
+        ];
+        applyAiFilter(true, themes);
+      }
+    },
   );
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 chrome.storage.sync.get(
-  ["productivityMode", "blockShorts", "blockShortsEverywhere", "focusKeywords", "blockKeywords"],
+  [
+    "productivityMode",
+    "blockShorts",
+    "blockShortsEverywhere",
+    "focusKeywords",
+    "blockKeywords",
+    "aiFilterEnabled",
+    "aiThemes",
+    "aiCustomThemes",
+  ],
   (data) => {
     applyProductivityMode(!!data.productivityMode);
     applyBlockShorts(!!data.blockShorts, !!data.blockShortsEverywhere);
-
     if (data.blockShorts) {
       blockShortsPlayback();
     }
-
-    // Only run filter if there are actual keywords
     if (data.focusKeywords || data.blockKeywords) {
       applyVideoFilter(data.focusKeywords, data.blockKeywords);
     }
-  }
+    if (data.aiFilterEnabled) {
+      const themes = [...(data.aiThemes || []), ...(data.aiCustomThemes || [])];
+      applyAiFilter(true, themes);
+    }
+  },
 );
 
 // ─── Message listener ─────────────────────────────────────────────────────────
@@ -253,8 +597,21 @@ chrome.runtime.onMessage.addListener((msg) => {
       applyVideoFilter(data.focusKeywords, data.blockKeywords);
     });
   }
-});
 
+  if (msg.type === "aiFilterEnabled" || msg.type === "aiThemes") {
+    chrome.storage.sync.get(
+      ["aiFilterEnabled", "aiThemes", "aiCustomThemes"],
+      (data) => {
+        const enabled = !!data.aiFilterEnabled;
+        const themes = [
+          ...(data.aiThemes || []),
+          ...(data.aiCustomThemes || []),
+        ];
+        applyAiFilter(enabled, themes);
+      },
+    );
+  }
+});
 
 // const KOALA_URL = chrome.runtime.getURL("images/cute_koala.png");
 
@@ -389,7 +746,6 @@ chrome.runtime.onMessage.addListener((msg) => {
 //   }
 // }
 
-
 // //UPDATED STARTS
 // // NEW: Function to block Shorts playback and content on Shorts pages or anywhere Shorts appear.
 // function blockShortsPlayback() {
@@ -434,7 +790,6 @@ chrome.runtime.onMessage.addListener((msg) => {
 // //   }
 // // }
 // // //UPDATED ENDS
-
 
 // //UPDATED STARTS
 // //UPDATED ENDS
@@ -485,7 +840,7 @@ chrome.runtime.onMessage.addListener((msg) => {
 //     if (data.focusKeywords || data.blockKeywords) {
 //       applyVideoFilter(data.focusKeywords, data.blockKeywords);
 //     }
-  
+
 //     //UPDATED ENDS
 //   });
 // });
@@ -499,7 +854,6 @@ chrome.runtime.onMessage.addListener((msg) => {
 //  /*completely new*/if (data.focusKeywords || data.blockKeywords) {
 //   /*completely new*/applyVideoFilter(data.focusKeywords, data.blockKeywords);
 // }
-  
 
 //     // Redirect or hide content
 //   if (data.blockShorts) {

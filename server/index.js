@@ -1,8 +1,9 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const app = express();
-const port = 3000;
-require("dotenv").config();
+const port = process.env.PORT || 3000;
+const OLLAMA_BASE = process.env.OLLAMA_BASE || "http://localhost:11434";
 
 app.use(express.json());
 app.use(cors());
@@ -11,7 +12,36 @@ const searchCache = new Map();
 const videoCache = new Map();
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`Server listening on port ${port}`);
+  console.log(`Proxying Ollama from ${OLLAMA_BASE}`);
+});
+
+// ── Ollama proxy ──────────────────────────────────────────────────────────────
+// The extension's service worker calls these endpoints instead of Ollama
+// directly, avoiding the chrome-extension:// origin rejection (HTTP 403).
+
+app.get("/ollama/api/tags", async (_req, res) => {
+  try {
+    const r = await fetch(`${OLLAMA_BASE}/api/tags`);
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+app.post("/ollama/api/generate", async (req, res) => {
+  try {
+    const r = await fetch(`${OLLAMA_BASE}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 async function getSearchList(searchTerm) {
