@@ -1,4 +1,5 @@
 const KOALA_URL = chrome.runtime.getURL("images/cute_koala.png");
+const SERVER_BASE = "http://localhost:3000";
 
 // ─── Productivity Mode ────────────────────────────────────────────────────────
 
@@ -215,6 +216,7 @@ let aiDecisionCache = new Map(); // title -> true (show) | false (hide)
 let aiFilterObserver = null;
 let aiDebounceTimer = null;
 let swKeepalivePort = null;
+let aiFilterRunId = 0; // incremented on each run; stale completions are discarded
 
 function openSwKeepalive() {
   if (swKeepalivePort) return;
@@ -265,8 +267,33 @@ function portCall(portName, payload) {
 
 function ollamaProxy(msg) {
   if (msg.type === "ollamaTags") return portCall("ollamaTags");
-  if (msg.type === "ollamaGenerate")
-    return portCall("ollamaGenerate", msg.payload);
+  if (msg.type === "ollamaGenerate") {
+    // Fetch directly from the content script — avoids service worker being
+    // killed by Chrome mid-request (common MV3 issue with long Ollama calls).
+    return fetch(`${SERVER_BASE}/ollama/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(msg.payload),
+    })
+      .then((r) => {
+        if (!r.ok) {
+          return r.text().then((body) => {
+            console.warn(
+              `[AI Filter] ollamaGenerate direct fetch failed: HTTP ${r.status}: ${body.slice(0, 200)}`,
+            );
+            return null;
+          });
+        }
+        return r.json();
+      })
+      .catch((err) => {
+        console.warn(
+          "[AI Filter] ollamaGenerate direct fetch error:",
+          err.message,
+        );
+        return null;
+      });
+  }
   // fallback for any other messages
   return Promise.resolve(null);
 }
@@ -362,6 +389,7 @@ async function classifyTitles(titles, themes) {
 }
 
 async function runAiFilter() {
+  const runId = ++aiFilterRunId;
   if (!aiState.enabled || aiState.themes.length === 0) {
     console.log(
       "[AI Filter] runAiFilter: disabled or no themes — restoring all cards",
@@ -402,8 +430,8 @@ async function runAiFilter() {
   );
   if (uncached.length === 0) return;
 
-  // Send uncached titles to Ollama in batches of 30
-  const BATCH_SIZE = 30;
+  // Send uncached titles to Ollama in batches of 10
+  const BATCH_SIZE = 10;
   for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
     const batch = uncached.slice(i, i + BATCH_SIZE);
     console.log(
@@ -411,10 +439,21 @@ async function runAiFilter() {
       batch.map((b) => b.title),
     );
 
+    console.log(
+      `%c[AI Filter] ⏳ Waiting for Ollama… (${batch.length} titles)`,
+      "color: #aaa;",
+    );
     const hideIndices = await classifyTitles(
       batch.map((b) => b.title),
       aiState.themes,
     );
+
+    if (runId !== aiFilterRunId) {
+      console.log(
+        "[AI Filter] Stale run discarded (filter was reset mid-request)",
+      );
+      break;
+    }
 
     if (hideIndices === null) {
       console.warn("[AI Filter] Ollama unavailable — stopping filter run");
@@ -436,8 +475,11 @@ async function runAiFilter() {
         shownTitles.push(title);
       }
     });
+    console.log(
+      `[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked`,
+    );
     console.groupCollapsed(
-      `%c[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked`,
+      `%c[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked (expand for details)`,
       "font-weight: bold;",
     );
     if (shownTitles.length > 0) {
