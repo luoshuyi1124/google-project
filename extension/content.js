@@ -205,10 +205,50 @@ const VIDEO_CARD_SELECTOR = [
   "ytd-video-renderer",
   "ytd-compact-video-renderer",
   "ytd-grid-video-renderer",
+  "ytd-reel-item-renderer",
+  "yt-lockup-view-model",
 ].join(", ");
 
 const TITLE_SELECTOR =
   "#video-title, #video-title-link, h3.ytLockupMetadataViewModelHeadingReset";
+
+/**
+ * Find all video cards on the page.
+ * Primary: querySelectorAll on known card elements.
+ * Fallback: locate title elements and walk up to the nearest card ancestor,
+ * covering new lockup-model layouts where the outer wrapper tag may differ.
+ */
+function findVideoCards() {
+  const direct = [...document.querySelectorAll(VIDEO_CARD_SELECTOR)];
+  if (direct.length > 0) return direct;
+
+  // Fallback: find by title element and climb to the nearest card container.
+  const seen = new Set();
+  const cards = [];
+  document.querySelectorAll(TITLE_SELECTOR).forEach((titleEl) => {
+    const card =
+      titleEl.closest(VIDEO_CARD_SELECTOR) ||
+      titleEl.closest("[class*='ytLockupViewModel']")?.closest("[id='content']")?.parentElement ||
+      titleEl.closest("[class*='ytLockupViewModelHost']")?.parentElement;
+    if (card && !seen.has(card)) {
+      seen.add(card);
+      cards.push(card);
+    }
+  });
+
+  if (cards.length === 0) {
+    // Last resort: any element that directly contains a title selector.
+    document.querySelectorAll(TITLE_SELECTOR).forEach((titleEl) => {
+      const card = titleEl.parentElement;
+      if (card && !seen.has(card)) {
+        seen.add(card);
+        cards.push(card);
+      }
+    });
+  }
+
+  return cards;
+}
 
 let aiState = { enabled: false, themes: [] };
 let aiModel = null;
@@ -414,9 +454,7 @@ async function runAiFilter() {
   } finally {
     aiFilterRunning = false;
     // If new cards appeared while we were running, process them now
-    const uncachedExist = [
-      ...document.querySelectorAll(VIDEO_CARD_SELECTOR),
-    ].some((card) => {
+    const uncachedExist = findVideoCards().some((card) => {
       const el = card.querySelector(TITLE_SELECTOR);
       const title = (el?.getAttribute("title") || el?.textContent || "")
         .replace(/\s+/g, " ")
@@ -439,10 +477,19 @@ async function _runAiFilterInner(runId) {
     return;
   }
 
-  const cards = [...document.querySelectorAll(VIDEO_CARD_SELECTOR)];
+  const cards = findVideoCards();
   console.log(
     `[AI Filter] runAiFilter: found ${cards.length} video cards on page`,
   );
+  if (cards.length === 0) {
+    console.log(
+      `[AI Filter] 0 cards — page may not have loaded video content yet, or selectors don't match this page type.`,
+      `\nURL: ${location.pathname}`,
+      `\nytd-rich-item-renderer count: ${document.querySelectorAll('ytd-rich-item-renderer').length}`,
+      `\nyt-lockup-view-model count: ${document.querySelectorAll('yt-lockup-view-model').length}`,
+      `\n${TITLE_SELECTOR} count: ${document.querySelectorAll(TITLE_SELECTOR).length}`,
+    );
+  }
 
   const uncached = [];
 
@@ -481,10 +528,12 @@ async function _runAiFilterInner(runId) {
       `%c[AI Filter] ⏳ Waiting for Ollama… (${batch.length} titles)`,
       "color: #aaa;",
     );
+    const _t0 = performance.now();
     const hideIndices = await classifyTitles(
       batch.map((b) => b.title),
       aiState.themes,
     );
+    const _elapsed = ((performance.now() - _t0) / 1000).toFixed(2);
 
     if (runId !== aiFilterRunId) {
       console.log(
@@ -514,7 +563,7 @@ async function _runAiFilterInner(runId) {
       }
     });
     console.log(
-      `[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked`,
+      `[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked  ⏱️ ${_elapsed}s`,
     );
     if (shownTitles.length > 0) {
       console.groupCollapsed(
