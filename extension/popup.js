@@ -224,6 +224,36 @@ document.getElementById("ollamaModel").addEventListener("change", (e) => {
 
 checkOllamaStatus();
 
+// ── Unload model from GPU memory ─────────────────────────────────────────────
+document.getElementById("unloadModelBtn").addEventListener("click", () => {
+  const btn = document.getElementById("unloadModelBtn");
+  const model = document.getElementById("ollamaModel").value;
+  if (!model) return;
+
+  btn.textContent = "Unloading…";
+  btn.classList.add("unloading");
+  btn.classList.remove("done");
+
+  fetch(`${"http://localhost:3000"}/ollama/api/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, keep_alive: 0 }),
+  })
+    .then(() => {
+      btn.textContent = "Unloaded";
+      btn.classList.remove("unloading");
+      btn.classList.add("done");
+      setTimeout(() => {
+        btn.textContent = "Unload";
+        btn.classList.remove("done");
+      }, 2500);
+    })
+    .catch(() => {
+      btn.textContent = "Unload";
+      btn.classList.remove("unloading");
+    });
+});
+
 // Also re-check when Apply Filter is toggled on
 document.getElementById("aiFilterEnabled")?.addEventListener("change", (e) => {
   if (e.target.checked) checkOllamaStatus();
