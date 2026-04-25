@@ -11,6 +11,7 @@ const ALL_KEYS = [
   "aiThemes",
   "aiCustomThemes",
   "ollamaModel",
+  "aiBatchSize",
 ];
 
 // Restore saved states on open
@@ -23,6 +24,9 @@ chrome.storage.sync.get(ALL_KEYS, (data) => {
     const el = document.getElementById(key);
     if (el) el.value = data[key] || "";
   }
+  // Batch size
+  const batchEl = document.getElementById("aiBatchSize");
+  if (batchEl && data.aiBatchSize) batchEl.value = data.aiBatchSize;
 });
 
 function sendToTab(msg) {
@@ -224,6 +228,40 @@ document.getElementById("ollamaModel").addEventListener("change", (e) => {
 
 checkOllamaStatus();
 
+// ── Batch size input ─────────────────────────────────────────────────────────
+document.getElementById("aiBatchSize")?.addEventListener("change", (e) => {
+  const value = Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 10));
+  e.target.value = value;
+  chrome.storage.sync.set({ aiBatchSize: value });
+  sendToTab({ type: "aiBatchSize", value });
+});
+
+// ── Queue counter (pending videos in content script) ─────────────────────────
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || !("aiPendingCount" in changes)) return;
+  const count = changes.aiPendingCount.newValue || 0;
+  const el = document.getElementById("queueStatus");
+  const countEl = document.getElementById("queueCount");
+  if (!el || !countEl) return;
+  if (count > 0) {
+    countEl.textContent = count;
+    el.style.display = "";
+  } else {
+    el.style.display = "none";
+  }
+});
+
+// Also read the current pending count on popup open
+chrome.storage.local.get("aiPendingCount", (data) => {
+  const count = data.aiPendingCount || 0;
+  const el = document.getElementById("queueStatus");
+  const countEl = document.getElementById("queueCount");
+  if (el && countEl && count > 0) {
+    countEl.textContent = count;
+    el.style.display = "";
+  }
+});
+
 // ── Unload model from GPU memory ─────────────────────────────────────────────
 document.getElementById("unloadModelBtn").addEventListener("click", () => {
   const btn = document.getElementById("unloadModelBtn");
@@ -233,6 +271,9 @@ document.getElementById("unloadModelBtn").addEventListener("click", () => {
   btn.textContent = "Unloading…";
   btn.classList.add("unloading");
   btn.classList.remove("done");
+
+  // Stop any in-flight Ollama requests in the content script immediately
+  sendToTab({ type: "unloadModel" });
 
   fetch(`${"http://localhost:3000"}/ollama/api/generate`, {
     method: "POST",

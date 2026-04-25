@@ -215,6 +215,38 @@
       .filter-status.active {
         color: #a855f7;
       }
+      .queue-status {
+        font-size: 11px;
+        color: #a855f7;
+        margin-top: 4px;
+        min-height: 14px;
+      }
+      .batch-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+      }
+      .batch-row label {
+        font-size: 12px;
+        color: #777;
+      }
+      .batch-row input[type="number"] {
+        width: 52px;
+        background: #111;
+        border: 1px solid #1e1e1e;
+        border-radius: 6px;
+        color: #e2e2e2;
+        font-size: 12px;
+        font-family: "Noto Sans Display", sans-serif;
+        padding: 3px 6px;
+        outline: none;
+        text-align: center;
+        transition: border-color 0.15s;
+      }
+      .batch-row input[type="number"]:focus {
+        border-color: #7c3aed;
+      }
       .ollama-status {
         display: flex;
         align-items: center;
@@ -370,6 +402,13 @@
       </div>
 
       <div class="filter-status" id="filterStatus"></div>
+      <div class="queue-status" id="queueStatus" style="display:none">
+        ⏳ <span id="queueCount">0</span> videos pending
+      </div>
+      <div class="batch-row">
+        <label for="aiBatchSize">Videos per request</label>
+        <input type="number" id="aiBatchSize" min="1" max="50" value="10" />
+      </div>
     </div>
 
     <script src="popup.js"></script>

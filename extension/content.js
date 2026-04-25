@@ -258,6 +258,9 @@ let aiDebounceTimer = null;
 let swKeepalivePort = null;
 let aiFilterRunId = 0; // incremented on each run; stale completions are discarded
 let aiFilterRunning = false; // prevents concurrent Ollama requests
+let aiFilterStopped = false; // set by unloadModel to suppress re-scheduling after abort
+let aiCurrentAbortController = null; // aborted when unload is requested
+let aiBatchSize = 10; // videos per Ollama request; configurable from popup
 
 function openSwKeepalive() {
   if (swKeepalivePort) return;
@@ -311,10 +314,12 @@ function ollamaProxy(msg) {
   if (msg.type === "ollamaGenerate") {
     // Fetch directly from the content script — avoids service worker being
     // killed by Chrome mid-request (common MV3 issue with long Ollama calls).
+    aiCurrentAbortController = new AbortController();
     return fetch(`${SERVER_BASE}/ollama/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(msg.payload),
+      signal: aiCurrentAbortController.signal,
     })
       .then((r) => {
         if (!r.ok) {
@@ -452,16 +457,20 @@ async function runAiFilter() {
   try {
     await _runAiFilterInner(runId);
   } finally {
+    aiCurrentAbortController = null;
     aiFilterRunning = false;
+    chrome.storage.local.set({ aiPendingCount: 0 });
     // If new cards appeared while we were running, process them now
-    const uncachedExist = findVideoCards().some((card) => {
-      const el = card.querySelector(TITLE_SELECTOR);
-      const title = (el?.getAttribute("title") || el?.textContent || "")
-        .replace(/\s+/g, " ")
-        .trim();
-      return title && !aiDecisionCache.has(title);
-    });
-    if (uncachedExist) scheduleAiFilter();
+    if (!aiFilterStopped) {
+      const uncachedExist = findVideoCards().some((card) => {
+        const el = card.querySelector(TITLE_SELECTOR);
+        const title = (el?.getAttribute("title") || el?.textContent || "")
+          .replace(/\s+/g, " ")
+          .trim();
+        return title && !aiDecisionCache.has(title);
+      });
+      if (uncachedExist) scheduleAiFilter();
+    }
   }
 }
 
@@ -491,9 +500,12 @@ async function _runAiFilterInner(runId) {
     );
   }
 
-  const uncached = [];
+  // Group cards by title to avoid sending duplicate titles to Ollama
+  // (YouTube nests ytd-video-renderer inside ytd-rich-item-renderer, so both
+  // match VIDEO_CARD_SELECTOR and produce the same title twice).
+  const titleCardMap = new Map(); // title -> [card, ...]
 
-  // Apply cached decisions instantly, queue the rest
+  // Apply cached decisions instantly, group the rest by title
   cards.forEach((card) => {
     const el = card.querySelector(TITLE_SELECTOR);
     const title = (el?.getAttribute("title") || el?.textContent || "")
@@ -506,21 +518,27 @@ async function _runAiFilterInner(runId) {
       if (!show) card.dataset.aiHidden = "1";
       else delete card.dataset.aiHidden;
     } else {
-      uncached.push({ card, title });
+      if (!titleCardMap.has(title)) titleCardMap.set(title, []);
+      titleCardMap.get(title).push(card);
     }
   });
+
+  const uncached = [...titleCardMap.entries()].map(([title, cards]) => ({ title, cards }));
 
   console.log(
     `[AI Filter] ${cards.length - uncached.length} from cache, ${uncached.length} need classification`,
   );
   if (uncached.length === 0) return;
 
-  // Send uncached titles to Ollama in batches of 10
-  const BATCH_SIZE = 10;
-  for (let i = 0; i < uncached.length; i += BATCH_SIZE) {
-    const batch = uncached.slice(i, i + BATCH_SIZE);
+  chrome.storage.local.set({ aiPendingCount: uncached.length });
+
+  // Send uncached titles to Ollama in configurable batches
+  for (let i = 0; i < uncached.length; i += aiBatchSize) {
+    const batch = uncached.slice(i, i + aiBatchSize);
+    // Update pending count: remaining items not yet processed
+    chrome.storage.local.set({ aiPendingCount: uncached.length - i });
     console.log(
-      `[AI Filter] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}: titles`,
+      `[AI Filter] Processing batch ${Math.floor(i / aiBatchSize) + 1}: titles`,
       batch.map((b) => b.title),
     );
 
@@ -550,17 +568,16 @@ async function _runAiFilterInner(runId) {
     const hideSet = new Set(hideIndices);
     const hiddenTitles = [];
     const shownTitles = [];
-    batch.forEach(({ card, title }, idx) => {
+    batch.forEach(({ cards, title }, idx) => {
       const show = !hideSet.has(idx);
       aiDecisionCache.set(title, show);
-      card.style.display = show ? "" : "none";
-      if (!show) {
-        card.dataset.aiHidden = "1";
-        hiddenTitles.push(title);
-      } else {
-        delete card.dataset.aiHidden;
-        shownTitles.push(title);
-      }
+      cards.forEach((card) => {
+        card.style.display = show ? "" : "none";
+        if (!show) card.dataset.aiHidden = "1";
+        else delete card.dataset.aiHidden;
+      });
+      if (!show) hiddenTitles.push(title);
+      else shownTitles.push(title);
     });
     console.log(
       `[AI Filter] Batch result — ✅ ${shownTitles.length} shown  🚫 ${hiddenTitles.length} blocked  ⏱️ ${_elapsed}s`,
@@ -615,6 +632,7 @@ async function applyAiFilter(enabled, themes) {
     themes,
   );
   aiState = { enabled, themes };
+  aiFilterStopped = false;
   aiDecisionCache.clear();
 
   if (!enabled || themes.length === 0) {
@@ -684,8 +702,10 @@ chrome.storage.sync.get(
     "aiFilterEnabled",
     "aiThemes",
     "aiCustomThemes",
+    "aiBatchSize",
   ],
   (data) => {
+    if (data.aiBatchSize) aiBatchSize = Math.max(1, Math.min(50, Number(data.aiBatchSize)));
     applyProductivityMode(!!data.productivityMode);
     applyBlockShorts(!!data.blockShorts, !!data.blockShortsEverywhere);
     if (data.blockShorts) {
@@ -743,6 +763,24 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "ollamaModel") {
     aiModel = msg.value || null; // clear cache so next run uses new model
     console.log("[AI Filter] Model changed to:", aiModel);
+  }
+
+  if (msg.type === "unloadModel") {
+    console.log("[AI Filter] unloadModel received — aborting in-flight request and stopping observer");
+    aiFilterStopped = true;
+    ++aiFilterRunId;
+    aiCurrentAbortController?.abort();
+    aiCurrentAbortController = null;
+    stopAiObserver();
+    chrome.storage.local.set({ aiPendingCount: 0 });
+  }
+
+  if (msg.type === "aiBatchSize") {
+    const n = parseInt(msg.value, 10);
+    if (!isNaN(n) && n >= 1 && n <= 50) {
+      aiBatchSize = n;
+      console.log("[AI Filter] Batch size updated to:", aiBatchSize);
+    }
   }
 });
 
